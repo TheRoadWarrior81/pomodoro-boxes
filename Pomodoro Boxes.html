@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pomodoro Boxes</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#2f6f5e">
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#22201d;--mute:#77726b;--line:#dcd8d0;--done:#2f6f5e;--carry:#c9772b;--empty:#fff;--warn:#fbeadb;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -23,12 +26,13 @@ h2{font-size:1.05rem;margin:0}
 .count{font-size:2.2rem;font-weight:700;line-height:1}
 .count small{font-size:1rem;color:var(--mute);font-weight:400}
 .step{display:flex;align-items:center;gap:8px}
-.step button{width:36px;height:36px;font-size:1.2rem}
+.step button:not(.sm){width:36px;height:36px;font-size:1.2rem}
 button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
 button:hover:not(:disabled){border-color:var(--mute)}
 button:disabled{opacity:.5;cursor:not-allowed}
 button.go{background:var(--done);border-color:var(--done);color:#fff;font-weight:700;padding:8px 18px}
-button.sm{padding:3px 10px;font-size:.9rem}
+button.sm{padding:8px 16px;font-size:.95rem;font-weight:600;white-space:nowrap}
+.hd .step{flex-wrap:wrap}
 input[type=text],textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 textarea{min-height:76px;resize:vertical}
 :focus-visible{outline:2px solid var(--done);outline-offset:2px}
@@ -54,12 +58,28 @@ details{border-top:1px solid var(--line);padding:8px 0}
 details:first-of-type{border-top:0}
 summary{cursor:pointer;display:flex;justify-content:space-between;gap:12px;list-style-position:inside}
 details .row{padding-left:18px}
+select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+.cats{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.cat{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;font-size:.9rem;border-radius:99px}
+.cat i{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.cat.sel{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c)}
+.dt{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.ins{display:grid;grid-template-columns:minmax(80px,140px) 1fr auto;gap:10px;align-items:center;padding:3px 0}
+.ins span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:10px;border-radius:5px;background:var(--c);min-width:2px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:10px}
+.cal .h{font-size:.75rem;color:var(--mute);text-align:center}
+.day{min-height:54px;border:1px solid var(--line);border-radius:6px;padding:3px 4px;font-size:.78rem;color:var(--mute);background:var(--card);display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.day.sel{border:2px solid var(--done);padding:2px 3px}
+.day.today b{color:var(--done)}
+.dots{display:flex;flex-wrap:wrap;gap:2px}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--c)}
 </style>
 </head>
 <body>
 <main>
   <h1>Pomodoro boxes</h1>
-  <p class="sub"><span id="date"></span> · <span id="sync">Saved on this device</span></p>
+  <p class="sub"><span id="date"></span> · <span id="sync">Saved on this device only</span></p>
 
   <section class="panel">
     <div class="top">
@@ -88,80 +108,50 @@ details .row{padding-left:18px}
   </section>
 
   <section class="panel">
+    <div class="hd"><h2>Insights</h2><div class="step"><select id="range" aria-label="Date range"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="0">All time</option></select><button class="sm go" id="report">Download report</button></div></div>
+    <div id="ins"></div>
+  </section>
+
+  <section class="panel">
+    <div class="hd"><h2 id="mlabel"></h2><div class="step"><button class="sm" id="mprev" aria-label="Previous month">&lsaquo;</button><button class="sm" id="mnext" aria-label="Next month">&rsaquo;</button></div></div>
+    <div class="cal" id="cal"></div>
+    <div class="legend" id="leg"></div>
+    <div id="daydet" style="margin-top:10px"></div>
+  </section>
+
+  <section class="panel">
     <div class="hd">
       <div><h2>History</h2><span class="mute" id="hcount"></span></div>
-      <div id="exports" hidden class="step">
-        <button class="sm" id="expcsv">Download CSV</button>
-        <button class="sm" id="expjson">Backup JSON</button>
+      <div id="exports" class="step">
+        <button class="sm" id="expcsv">CSV</button>
+        <button class="sm" id="expjson">Backup</button>
+        <button class="sm" id="impjson">Restore</button>
+        <input type="file" id="impfile" accept=".json,application/json" hidden>
       </div>
     </div>
     <div id="hist"></div>
   </section>
 </main>
 <script>
-const KEY='pomodoro-boxes-v1', DUR=25*60*1000, GRACE=60*1000, NCHECK=2;
+const KEY='pomodoro-boxes-v1', GRACE=60*1000, NCHECK=2;
 let S=null;
 try{S=JSON.parse(localStorage.getItem(KEY));}catch(e){}
 if(!S||typeof S!=='object')S={def:8,days:{},reset:null};
 if(S.checks===undefined)S.checks=true;
+if(!S.dur)S.dur=25;
+if(!Array.isArray(S.cats)||!S.cats.length)S.cats=[{n:'Work',c:'#3b7dd8'},{n:'Study',c:'#8e5bd1'},{n:'Health',c:'#2f9e6e'},{n:'Personal',c:'#d9822b'}];
+if(S.timer&&!S.timer.dur)S.timer.dur=25;
+if(S.await&&!S.await.dur)S.await.dur=25;
+let CAT=S.cats[0].n;
+const catCol=n=>{const c=S.cats.find(x=>x.n===n);return c&&/^#[0-9a-f]{3,8}$/i.test(c.c)?c.c:'#8a857d';};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const iso=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*6e4);return z.toISOString().slice(0,10);};
 const addDays=(s,n)=>{const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return iso(d);};
 const fmtTime=t=>new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
 
-/* ---------- storage: this device + your private account storage ---------- */
-let col=null,synced={},tmr=null,flushing=false,again=false;
-function setStatus(s){
-  $('sync').textContent={local:'Saved on this device only',saving:'Saving…',synced:'All entries saved to your account',error:'Sync failed, retrying. Entries are safe on this device'}[s];
-}
-function localSave(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
-function save(){localSave();if(col){setStatus('saving');clearTimeout(tmr);tmr=setTimeout(flush,700);}}
-const metaDoc=()=>({def:S.def,reset:S.reset||null,checks:S.checks,timer:S.timer||null,await:S.await||null});
-async function flush(){
-  if(!col)return;
-  if(flushing){again=true;return;}
-  flushing=true;let ok=true;
-  try{
-    const docs={meta:metaDoc()};
-    for(const d in S.days)docs['d_'+d]=S.days[d];
-    for(const k in docs){
-      const j=JSON.stringify(docs[k]);
-      if(synced[k]===j)continue;
-      await col.doc(k).set(JSON.parse(j));
-      synced[k]=j;
-    }
-    setStatus('synced');
-  }catch(e){ok=false;setStatus('error');clearTimeout(tmr);tmr=setTimeout(flush,15000);}
-  flushing=false;
-  if(again&&ok){again=false;flush();}
-}
-async function initDb(){
-  if(!window.claude||!claude.use)return;
-  claude.use('downloads').then(d=>{if(d)$('exports').hidden=false;}).catch(()=>{});
-  try{
-    const [user,db]=await Promise.all([claude.use('user'),claude.use('db')]);
-    if(!user||!db)return;
-    const id=await user.id();
-    if(!id)return;
-    const c=db.collection('data/users/'+id);
-    const snap=await c.get();
-    snap.docs.forEach(doc=>{
-      const raw=doc.data();if(!raw)return;
-      const v=JSON.parse(JSON.stringify(raw));
-      if(doc.id==='meta'){
-        if(v.def!=null)S.def=v.def;
-        S.reset=v.reset||null;
-        if(v.checks!==undefined)S.checks=v.checks;
-        S.timer=v.timer||null;S.await=v.await||null;
-      }else if(doc.id.startsWith('d_')){
-        const d=doc.id.slice(2),loc=S.days[d];
-        if(!loc||(v.log||[]).length>=(loc.log||[]).length){S.days[d]=v;synced[doc.id]=JSON.stringify(v);}
-      }
-    });
-    col=c;localSave();phase=null;tick();setStatus('saving');flush();
-  }catch(e){setStatus('local');}
-}
+/* ---------- storage ---------- */
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
 /* ---------- days and carryforward ---------- */
 function compute(){
@@ -191,9 +181,9 @@ function notify(t){try{if(window.Notification&&Notification.permission==='grante
 
 /* ---------- session logic ---------- */
 function startSession(task){
-  const start=Date.now(),checks=[];
+  const start=Date.now(),checks=[],DUR=S.dur*60000;
   if(S.checks)for(let i=0;i<NCHECK;i++)checks.push({at:start+DUR*(.2+i*.35+Math.random()*.25),acked:false});
-  S.timer={task,start,checks};msg='';save();
+  S.timer={task,start,checks,dur:S.dur,cat:CAT};msg='';save();
   try{if(window.Notification&&Notification.permission==='default')Notification.requestPermission();}catch(e){}
   beep(1);tick();
 }
@@ -202,8 +192,60 @@ function evalTimer(){
   const T=S.timer;if(!T)return;
   const now=Date.now();
   for(const c of T.checks){if(!c.acked&&now>c.at+GRACE){voidSession('a check-in was missed.');return;}}
-  if(now>=T.start+DUR){S.await={task:T.task};S.timer=null;save();beep(3);notify('25 minutes done. Log what you finished to earn the box.');}
+  if(now>=T.start+T.dur*60000){S.await={task:T.task,cat:T.cat,dur:T.dur};S.timer=null;save();beep(3);notify('Session done. Log what you finished to earn the box.');}
 }
+
+/* ---------- categories, insights, calendar ---------- */
+const PAL=['#d64f6a','#2a9db5','#b8a21f','#6a7bd6','#c25ea8','#5fa34a'];
+const entryHtml=e=>'<div class="row"><span><i class="dt" style="background:'+catCol(e.cat)+'"></i><b>'+esc(e.task)+'</b><br><span class="mute">'+esc(e.note)+'</span></span><span class="mute">'+fmtTime(e.at)+' · '+(e.m||25)+'m</span></div>';
+const allLogs=()=>{const a=[];for(const d in S.days)(S.days[d].log||[]).forEach(e=>a.push(Object.assign({},e,{d,cat:e.cat||'Uncategorized',m:e.m||25})));return a;};
+const hm=m=>(m>=60?Math.floor(m/60)+'h ':'')+(m%60)+'m';
+function stats(n){
+  const from=n?addDays(iso(new Date()),-n):'',byCat={},byTask={};let tot=0;
+  const L=allLogs().filter(e=>e.d>from);
+  L.forEach(e=>{tot+=e.m;byCat[e.cat]=(byCat[e.cat]||0)+e.m;
+    const k=e.task.trim().toLowerCase();(byTask[k]=byTask[k]||{n:e.task.trim(),m:0,cat:e.cat}).m+=e.m;});
+  return{L,tot,byCat,byTask};
+}
+function drawCats(){
+  const w=$('cats');if(!w)return;
+  w.innerHTML=S.cats.map(c=>'<button class="cat'+(c.n===CAT?' sel':'')+'" style="--c:'+catCol(c.n)+'" data-n="'+esc(c.n)+'"><i></i>'+esc(c.n)+'</button>').join('')+'<button class="cat" id="addcat">+ New category</button>';
+  w.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{CAT=b.dataset.n;drawCats();});
+  $('addcat').onclick=()=>{const n=(prompt('Category name')||'').trim().slice(0,20);
+    if(!n||S.cats.some(c=>c.n.toLowerCase()===n.toLowerCase()))return;
+    S.cats.push({n,c:PAL[S.cats.length%PAL.length]});CAT=n;save();drawCats();};
+}
+function renderIns(){
+  const s=stats(+$('range').value);
+  let h='<p class="mute" style="margin:0 0 8px">'+s.L.length+' sessions, '+hm(s.tot)+' focused</p>';
+  if(!s.L.length){$('ins').innerHTML=h+'<p class="mute" style="margin:0">Nothing logged in this range yet. Finish a session to see where your time goes.</p>';return;}
+  const row=(name,col,v,mx)=>'<div class="ins"><span title="'+esc(name)+'">'+esc(name)+'</span><div><div class="bar" style="--c:'+col+';width:'+(v/mx*100)+'%"></div></div><span class="mute">'+hm(v)+'</span></div>';
+  const cs=Object.entries(s.byCat).sort((a,b)=>b[1]-a[1]);
+  h+='<b>By category</b>'+cs.map(([k,v])=>row(k,catCol(k),v,cs[0][1])).join('');
+  const ts=Object.values(s.byTask).sort((a,b)=>b.m-a.m).slice(0,8);
+  h+='<div style="margin-top:12px"><b>Top tasks</b></div>'+ts.map(x=>row(x.n,catCol(x.cat),x.m,ts[0].m)).join('');
+  $('ins').innerHTML=h;
+}
+let vm=iso(new Date()).slice(0,7),sel=null;
+const shiftM=n=>{const p=vm.split('-').map(Number);return iso(new Date(p[0],p[1]-1+n,15)).slice(0,7);};
+function renderCal(){
+  const p=vm.split('-').map(Number),first=new Date(p[0],p[1]-1,1),dim=new Date(p[0],p[1],0).getDate(),td=iso(new Date());
+  $('mlabel').textContent=first.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  let h=['S','M','T','W','T','F','S'].map(x=>'<div class="h">'+x+'</div>').join('');
+  for(let i=0;i<first.getDay();i++)h+='<div></div>';
+  for(let d=1;d<=dim;d++){
+    const k=vm+'-'+String(d).padStart(2,'0'),log=(S.days[k]||{}).log||[];
+    h+='<button class="day'+(k===td?' today':'')+(k===sel?' sel':'')+'" data-d="'+k+'" aria-label="'+k+', '+log.length+' sessions"><b>'+d+'</b><span class="dots">'+log.slice(0,12).map(e=>'<i style="--c:'+catCol(e.cat)+'"></i>').join('')+'</span></button>';
+  }
+  $('cal').innerHTML=h;
+  $('cal').querySelectorAll('.day').forEach(b=>b.onclick=()=>{sel=b.dataset.d;renderCal();});
+  $('leg').innerHTML=S.cats.map(c=>'<span><span class="sw" style="border-color:'+catCol(c.n)+';background:'+catCol(c.n)+'"></span>'+esc(c.n)+'</span>').join('');
+  const L=sel?((S.days[sel]||{}).log||[]):[];
+  $('daydet').innerHTML=sel?'<b>'+sel+'</b>'+(L.length?L.map(entryHtml).join(''):'<p class="mute" style="margin:4px 0 0">No sessions this day.</p>'):'<span class="mute">Select a day to see what you finished.</span>';
+}
+$('range').onchange=renderIns;
+$('mprev').onclick=()=>{vm=shiftM(-1);renderCal();};
+$('mnext').onclick=()=>{vm=shiftM(1);renderCal();};
 
 /* ---------- rendering ---------- */
 function render(){
@@ -218,7 +260,6 @@ function render(){
     b.setAttribute('role','img');b.setAttribute('aria-label','Box '+(i+1)+(i<t.done?', done':', not done'));
     grid.appendChild(b);
   }
-  const entryHtml=e=>'<div class="row"><span><b>'+esc(e.task)+'</b><br><span class="mute">'+esc(e.note)+'</span></span><span class="mute">'+fmtTime(e.at)+'</span></div>';
   $('log').innerHTML=t.rec.log.length?t.rec.log.map(entryHtml).join(''):'<p class="mute" style="margin:0">No finished sessions yet today.</p>';
 
   const map={};rows.forEach(r=>map[r.d]=r);
@@ -235,6 +276,7 @@ function render(){
     det.innerHTML='<summary><span>'+label+'</span><span class="mute">'+stat+'</span></summary>'+(log.length?log.map(entryHtml).join(''):'<div class="mute" style="padding-left:18px">No sessions logged.</div>');
     h.appendChild(det);
   });
+  renderIns();renderCal();
 }
 
 function renderFocus(){
@@ -245,30 +287,32 @@ function renderFocus(){
       '<div class="gap"><button id="abandon">Abandon session</button></div>';
     $('abandon').onclick=()=>{if(confirm('Abandon this session? No box will be earned.')){S.timer=null;msg='Session abandoned. No box earned.';save();tick();}};
   }else if(phase==='note'){
-    f.innerHTML='<h2>25 minutes done</h2><p style="margin:8px 0">You worked on <b>'+esc(S.await.task)+'</b>. Write what you actually finished to earn the box.</p>'+
+    f.innerHTML='<h2>Session complete</h2><p style="margin:8px 0">You worked on <b>'+esc(S.await.task)+'</b>. Write what you actually finished to earn the box.</p>'+
       '<textarea id="note" placeholder="e.g. Solved 2 LeetCode mediums, wrote the Postgres schema"></textarea>'+
       '<div class="gap"><button class="go" id="submit" disabled>Earn box</button><span class="mute">At least 15 characters.</span></div>';
     const n=$('note');n.oninput=()=>{$('submit').disabled=n.value.trim().length<15;};
-    $('submit').onclick=()=>{const tt=today();tt.rec.log.push({task:S.await.task,note:n.value.trim(),at:Date.now()});
-      tt.rec.done=tt.done+1;S.await=null;save();tick();};
+    $('submit').onclick=()=>{const tt=today();tt.rec.log.push({task:S.await.task,note:n.value.trim(),at:Date.now(),cat:S.await.cat||'',m:S.await.dur||25});
+      tt.rec.done=tt.done+(S.await.dur||25)/25;S.await=null;save();tick();};
   }else{
     const blocked=t.left===0;
     f.innerHTML='<h2>Start a focus session</h2>'+(msg?'<div class="err" style="margin-top:8px">'+esc(msg)+'</div>':'')+
       (blocked?'<p style="margin:8px 0 0">All boxes for today are done. Raise the daily target to keep going.</p>':
       '<div style="margin-top:8px"><input type="text" id="task" maxlength="80" placeholder="What exactly will you work on?" aria-label="Task"></div>'+
-      '<div class="gap"><button class="go" id="start" disabled>Start 25:00</button>'+
+      '<div class="cats" id="cats"></div><div class="gap"><button class="go" id="start" disabled>Start '+S.dur+':00</button><select id="dur" aria-label="Session length">'+[25,50,75].map(m=>'<option value="'+m+'"'+(m===S.dur?' selected':'')+'>'+m+' min ('+m/25+(m===25?' box':' boxes')+')</option>').join('')+'</select>'+
       '<label class="chk"><input type="checkbox" id="chk"'+(S.checks?' checked':'')+'> Random check-ins</label></div>'+
-      '<p class="mute" style="margin:10px 0 0;font-size:.9rem">The timer counts real time, so it keeps running if you switch tabs. You earn the box only after 25 minutes and a note about what you finished.</p>');
+      '<p class="mute" style="margin:10px 0 0;font-size:.9rem">The timer counts real time, so it keeps running if you switch tabs. You earn boxes only after the full session and a note about what you finished.</p>');
     if(!blocked){
       const ti=$('task');ti.oninput=()=>{$('start').disabled=ti.value.trim().length<3;};
       $('start').onclick=()=>startSession(ti.value.trim());
       $('chk').onchange=e=>{S.checks=e.target.checked;save();};
+      $('dur').onchange=e=>{S.dur=+e.target.value;save();$('start').textContent='Start '+S.dur+':00';};
+      drawCats();
     }
   }
 }
 
 function updateRun(){
-  const T=S.timer,now=Date.now(),left=Math.max(0,T.start+DUR-now);
+  const T=S.timer,now=Date.now(),left=Math.max(0,T.start+T.dur*60000-now);
   const txt=String(Math.floor(left/60000)).padStart(2,'0')+':'+String(Math.floor(left%60000/1000)).padStart(2,'0');
   if(!$('clock'))return;
   $('clock').textContent=txt;document.title=txt+' · '+T.task;
@@ -291,20 +335,44 @@ function tick(){
   if(p==='run')updateRun();
 }
 
-/* ---------- export ---------- */
-async function exportFile(kind){
-  try{
-    const dl=await claude.use('downloads');if(!dl)return;
-    if(kind==='csv'){
-      const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
-      const lines=['date,time,task,note'];
-      Object.keys(S.days).sort().forEach(d=>(S.days[d].log||[]).forEach(e=>lines.push([d,q(fmtTime(e.at)),q(e.task),q(e.note)].join(','))));
-      await dl.save({filename:'pomodoro-entries.csv',data:lines.join('\n')});
-    }else{
-      await dl.save({filename:'pomodoro-backup.json',data:JSON.stringify({exported:new Date().toISOString(),settings:{def:S.def,reset:S.reset,checks:S.checks},days:S.days},null,2)});
-    }
-  }catch(e){}
+/* ---------- export, import, report ---------- */
+function dl(name,data,type){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
+function exportFile(kind){
+  if(kind==='csv'){
+    const q=v=>{v=String(v);if(/^[=+\-@]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"';};
+    const lines=['date,time,category,minutes,task,note'];
+    allLogs().sort((a,b)=>a.at-b.at).forEach(e=>lines.push([e.d,q(fmtTime(e.at)),q(e.cat),e.m,q(e.task),q(e.note)].join(',')));
+    dl('pomodoro-entries.csv',lines.join('\n'),'text/csv');
+  }else{
+    dl('pomodoro-backup.json',JSON.stringify({exported:new Date().toISOString(),settings:{def:S.def,reset:S.reset,checks:S.checks,cats:S.cats,dur:S.dur},days:S.days},null,2),'application/json');
+  }
+}
+function report(){
+  const n=+$('range').value,s=stats(n),t=iso(new Date()),days={};
+  s.L.forEach(e=>(days[e.d]=days[e.d]||[]).push(e));
+  const cat=Object.entries(s.byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>'<tr><td><i style="background:'+catCol(k)+'"></i>'+esc(k)+'</td><td>'+hm(v)+'</td><td>'+Math.round(v/s.tot*100)+'%</td></tr>').join('');
+  const tasks=Object.values(s.byTask).sort((a,b)=>b.m-a.m).map(x=>'<tr><td>'+esc(x.n)+'</td><td>'+esc(x.cat)+'</td><td>'+hm(x.m)+'</td></tr>').join('');
+  const det=Object.keys(days).sort().reverse().map(d=>'<h3>'+d+' ('+hm(days[d].reduce((a,e)=>a+e.m,0))+')</h3><ul>'+days[d].map(e=>'<li><b>'+esc(e.task)+'</b> ['+esc(e.cat)+', '+e.m+'m] '+esc(e.note)+'</li>').join('')+'</ul>').join('');
+  const html='<!DOCTYPE html><meta charset="utf-8"><title>Progress report</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:760px;margin:30px auto;padding:0 16px;color:#222}table{border-collapse:collapse;width:100%;margin:8px 0 20px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}h1{margin-bottom:0}.m{color:#777}</style><h1>Progress report</h1><p class="m">'+(n?'Last '+n+' days':'All time')+', generated '+t+'</p><p><b>'+s.L.length+'</b> sessions, <b>'+hm(s.tot)+'</b> focused, <b>'+Object.keys(days).length+'</b> active days</p><h2>Time by category</h2><table>'+cat+'</table><h2>Time by task</h2><table><tr><th>Task</th><th>Category</th><th>Time</th></tr>'+tasks+'</table><h2>Daily log</h2>'+det+'<p class="m">To save as PDF, open this file and use Print.</p>';
+  dl('progress-report-'+t+'.html',html,'text/html');
+}
+$('report').onclick=report;
+$('impjson').onclick=()=>$('impfile').click();
+$('impfile').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{
+    const j=JSON.parse(await f.text());if(!j.days||typeof j.days!=='object')throw 0;
+    if(!confirm('Merge this backup into your data? Days with more entries in the backup replace local ones.'))return;
+    for(const d in j.days){const v=j.days[d],loc=S.days[d];if(v&&typeof v==='object'&&(!loc||(v.log||[]).length>=(loc.log||[]).length))S.days[d]=v;}
+    const st=j.settings||{};
+    if(Array.isArray(st.cats)&&st.cats.length)S.cats=st.cats.filter(c=>c&&typeof c.n==='string');
+    if(typeof st.def==='number')S.def=st.def;
+    CAT=S.cats[0].n;save();phase=null;tick();
+  }catch(err){alert('That file is not a valid backup. Choose a JSON file exported with Backup.');}
+};
 $('expcsv').onclick=()=>exportFile('csv');
 $('expjson').onclick=()=>exportFile('json');
 
@@ -314,7 +382,7 @@ $('forgive').onclick=()=>{if(confirm('Clear all carried-over boxes and start fre
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick();});
 setInterval(tick,500);
 tick();
-initDb();
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>
