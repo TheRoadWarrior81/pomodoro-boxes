@@ -13,7 +13,7 @@ A focus timer where a box only fills if you actually did the work.
 
 ## Run it
 
-Open `index.html`, or host the folder on GitHub Pages (Settings, Pages, deploy from the main branch).
+Open `Pomodoro_Boxes.html`, or host the folder on GitHub Pages (Settings, Pages, deploy from the main branch).
 Service workers need http(s), so the offline/install features work on the hosted version.
 
 ## Roadmap
